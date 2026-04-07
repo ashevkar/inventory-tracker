@@ -1,8 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { NextResponse } from 'next/server';
 import { Camera } from 'react-camera-pro';
 import { Button, Box, Typography } from '@mui/material';
-import Image from 'next/image';
 import { storage } from "../firebase";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
@@ -43,7 +41,7 @@ const CameraComponent = ({ onDetection, inventoryItems }) => {
 
     async function uploadImageToStorage(imageSrc) {
         if (!imageSrc) {
-            return NextResponse.json({ error: 'No image data received' }, { status: 400 });
+            throw new Error('No image data received');
         }
         const storageRef = ref(storage, `images_recognition/${Date.now()}.jpg`);
         const response = await fetch(imageSrc);

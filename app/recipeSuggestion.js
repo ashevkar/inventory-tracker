@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 
 
-const RecipeSuggestion = ({ open, onClose, inventoryItems }) => {
+const RecipeSuggestion = ({ onClose, inventoryItems }) => {
     const [recipe, setRecipe] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -34,11 +34,7 @@ const RecipeSuggestion = ({ open, onClose, inventoryItems }) => {
                 throw new Error('Failed to fetch recipe from API');
             }
             const data = await response.text();
-            if (data) {
-                return data;
-            } else {
-                return null;
-            }
+            return data || null;
         } catch (error) {
             console.error('Error getting recipe from AI: ', error);
             setError('Failed to get recipe. Please try again.');
@@ -51,19 +47,27 @@ const RecipeSuggestion = ({ open, onClose, inventoryItems }) => {
         setError(null);
         try {
             const recipeText = await aiRecipeGenerator();
-            console.log("recipeText ", recipeText);
             if (!recipeText) {
-                console.error('Error generating recipe');
                 throw new Error('API error!');
             } else {
-                const recipeParts = recipeText.split('\n\n');
+                const recipeParts = recipeText.split('\n\n').filter(Boolean);
+                const nameSection = recipeParts.find((part) => part.toLowerCase().includes('recipe name')) || recipeParts[0] || '';
+                const ingredientsSection = recipeParts.find((part) => part.toLowerCase().includes('ingredients')) || '';
+                const instructionsSection = recipeParts.find((part) => part.toLowerCase().includes('instructions')) || recipeParts[2] || '';
                 const recipe = {
-                    name: recipeParts[0].replace('Recipe Name: ', ''),
-                    ingredients: recipeParts[1].replace('Ingredients:\n', '').split('\n'),
-                    steps: recipeParts[2].replace('Instructions:\n', '').split('\n'),
+                    name: nameSection.replace(/recipe name:\s*/i, '').trim() || 'Suggested Recipe',
+                    ingredients: ingredientsSection
+                        .replace(/ingredients:\s*/i, '')
+                        .split('\n')
+                        .map((line) => line.replace(/^[-*]\s*/, '').trim())
+                        .filter(Boolean),
+                    steps: instructionsSection
+                        .replace(/instructions:\s*/i, '')
+                        .split('\n')
+                        .map((line) => line.replace(/^\d+[.)]\s*/, '').trim())
+                        .filter(Boolean),
                 };
                 setRecipe(recipe);
-                console.log("Recipe generated, ", recipe?.name);
             }
         } catch (error) {
             console.error('Error generating recipe: ', error);
@@ -74,7 +78,7 @@ const RecipeSuggestion = ({ open, onClose, inventoryItems }) => {
     };
 
     return (
-        <Box open={open} onClose={onClose} maxWidth="md" fullwidth="true">
+        <Box maxWidth="md" width="100%">
             <Box display="flex" flexDirection="column" alignItems="left" padding={2}>
                 <Typography variant="h6" gutterBottom>
                     Available Ingredients:
@@ -82,7 +86,7 @@ const RecipeSuggestion = ({ open, onClose, inventoryItems }) => {
                 <Typography
                     variant="overline"
                     color="textSecondary"
-                    sx={{ marginLeft: 2, display: 'inline', fontSize: '0.875rem', fontFamily: 'Arial' }}
+                    sx={{ marginLeft: 2, display: 'inline', fontSize: '0.875rem' }}
                 >
                     {inventoryItems.join(', ')}
                 </Typography>

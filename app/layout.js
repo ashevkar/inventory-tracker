@@ -1,17 +1,25 @@
-import { Inter } from "next/font/google";
+import { DM_Sans, Syne } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-dm-sans",
+});
+
+const syne = Syne({
+  subsets: ["latin"],
+  variable: "--font-syne",
+});
 
 export const metadata = {
-  title: "Pantry Tracker by Aishwarya",
+  title: "Pantry Tracker",
   description: "",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className={`${dmSans.variable} ${syne.variable}`}>{children}</body>
     </html>
   );
 }

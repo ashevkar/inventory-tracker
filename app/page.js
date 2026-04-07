@@ -1,107 +1,177 @@
 'use client'
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import {
-  CssBaseline,
-  Box,
-  Button,
-  Modal,
-  Stack,
-  TextField,
-  Typography,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-} from "@mui/material";
-import {
-  Brightness4 as Brightness4Icon,
-  Brightness7 as Brightness7Icon,
-  Delete as DeleteIcon,
-  AddShoppingCart as AddShoppingCartIcon,
-  Close as CloseIcon,
-  Assistant as AssistantIcon
-} from '@mui/icons-material';
-import IconButton from '@mui/material/IconButton';
-import { PieChart } from "@mui/x-charts";
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { firestore } from "../firebase";
 import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc } from "firebase/firestore";
 import CameraComponent from "./cameraComponent";
 import RecipeSuggestion from "./recipeSuggestion";
-import { SpeedInsights } from "@vercel/speed-insights/next"
+import { Dialog, DialogContent, DialogTitle, IconButton } from "@mui/material";
+import { Close as CloseIcon } from "@mui/icons-material";
+import "./page.css";
 
+/** Shown in Firestore when the collection is empty (matches redesign mock). */
+const DEMO_INVENTORY = [
+  { name: "green apple", quantity: 8 },
+  { name: "banana", quantity: 7 },
+  { name: "boxes", quantity: 4 },
+  { name: "doormat", quantity: 2 },
+  { name: "coffee", quantity: 2 },
+  { name: "forklift", quantity: 1 },
+];
 
 export default function Home() {
   const [inventory, setInventory] = useState([])
   const [open, setOpen] = useState(false)
   const [itemName, setItemName] = useState('')
   const [searchTerm, setSearchTerm] = useState('');
-  const [darkMode, setDarkMode] = useState(true);
   const [openCamera, setOpenCamera] = useState(false);
   const [openRecipe, setOpenRecipe] = useState(false);
-  const [openRecipeSuggestion, setOpenRecipeSuggestion] = useState(false);
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [uiError, setUiError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const withTimeout = async (promise, ms, label) => {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(`${label} timed out after ${ms}ms. Check Firestore is enabled + rules allow writes.`));
+      }, ms);
+    });
+
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
+  const fetchInventoryList = async () => {
+    const snapshot = query(collection(firestore, "inventory"));
+    const docs = await withTimeout(getDocs(snapshot), 8000, "Loading inventory");
+    const inventoryList = [];
+    docs.forEach((d) => {
+      inventoryList.push({
+        name: d.id,
+        ...d.data(),
+      });
+    });
+    return inventoryList;
+  };
 
   const updateInventory = async () => {
-    const snapshot = query(collection(firestore, 'inventory'))
-    const docs = await getDocs(snapshot)
-    const inventoryList = []
-    docs.forEach((doc) => {
-      inventoryList.push({
-        name: doc.id,
-        ...doc.data()
-      })
-    })
-    setInventory(inventoryList)
-  }
+    try {
+      const inventoryList = await fetchInventoryList();
+      setInventory(inventoryList);
+    } catch (err) {
+      console.error("Failed to load inventory:", err);
+      setUiError(err?.message || "Failed to load inventory.");
+    }
+  };
 
-  const addItem = async (item, camera=false) => {
-    if (camera == true) {
+  const addItem = async (item, camera = false) => {
+    setUiError("");
+    if (!item || !item.trim()) return;
+    let normalized = item.trim().toLowerCase();
+
+    if (camera === true) {
       inventory.forEach(itemDoc => {
-        if (item.toLowerCase().includes(itemDoc.name.toLowerCase()) || itemDoc.name.toLowerCase().includes(item.toLowerCase())) {
-          item = itemDoc.name;
+        if (
+          normalized.includes(itemDoc.name.toLowerCase()) ||
+          itemDoc.name.toLowerCase().includes(normalized)
+        ) {
+          normalized = itemDoc.name.toLowerCase();
         }
       });
     }
 
-    const docRef = doc(collection(firestore, 'inventory'), item)
-    const docSnap = await getDoc(docRef)
+    setSaving(true);
+    try {
+      const docRef = doc(collection(firestore, 'inventory'), normalized)
+      const docSnap = await withTimeout(getDoc(docRef), 8000, "Reading item")
 
-    if (docSnap.exists()) {
-      const { quantity } = docSnap.data()
-      await setDoc(docRef, { quantity: quantity + 1 })
-    } else {
-      await setDoc(docRef, { quantity: 1 })
+      if (docSnap.exists()) {
+        const { quantity } = docSnap.data()
+        await withTimeout(setDoc(docRef, { quantity: quantity + 1 }), 8000, "Saving item")
+      } else {
+        await withTimeout(setDoc(docRef, { quantity: 1 }), 8000, "Saving item")
+      }
+      await updateInventory()
+    } catch (err) {
+      console.error("Failed to add item:", err);
+      setUiError(err?.message || "Failed to add item.");
+      throw err;
+    } finally {
+      setSaving(false);
     }
-    await updateInventory()
   }
 
   const removeItem = async (item) => {
-    const docRef = doc(collection(firestore, 'inventory'), item)
-    const docSnap = await getDoc(docRef)
+    setUiError("");
+    try {
+      const docRef = doc(collection(firestore, 'inventory'), item)
+      const docSnap = await getDoc(docRef)
 
-    if (docSnap.exists()) {
-      const { quantity } = docSnap.data()
-      if (quantity === 1) {
-        await deleteDoc(docRef)
-      } else {
-        await setDoc(docRef, { quantity: quantity - 1 })
+      if (docSnap.exists()) {
+        const { quantity } = docSnap.data()
+        if (quantity === 1) {
+          await deleteDoc(docRef)
+        } else {
+          await setDoc(docRef, { quantity: quantity - 1 })
+        }
       }
+      await updateInventory()
+    } catch (err) {
+      console.error("Failed to remove item:", err);
+      setUiError(err?.message || "Failed to remove item.");
     }
-    await updateInventory()
   }
 
   const deleteItem = async (item) => {
-    const docRef = doc(collection(firestore, 'inventory'), item)
-    const docSnap = await getDoc(docRef)
+    setUiError("");
+    try {
+      const docRef = doc(collection(firestore, 'inventory'), item)
+      const docSnap = await getDoc(docRef)
 
-    if (docSnap.exists()) {
-      await deleteDoc(docRef)
+      if (docSnap.exists()) {
+        await deleteDoc(docRef)
+      }
+      await updateInventory()
+    } catch (err) {
+      console.error("Failed to delete item:", err);
+      setUiError(err?.message || "Failed to delete item.");
     }
-    await updateInventory()
   }
 
   useEffect(() => {
-    updateInventory()
-  }, [])
+    let cancelled = false;
+    (async () => {
+      try {
+        setUiError("");
+        const list = await fetchInventoryList();
+        if (cancelled) return;
+        if (list.length === 0) {
+          for (const row of DEMO_INVENTORY) {
+            await withTimeout(
+              setDoc(doc(collection(firestore, "inventory"), row.name), { quantity: row.quantity }),
+              8000,
+              "Seeding demo item"
+            );
+          }
+          const seeded = await fetchInventoryList();
+          if (!cancelled) setInventory(seeded);
+        } else {
+          setInventory(list);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Failed to load / seed inventory:", err);
+          setUiError(err?.message || "Failed to load inventory.");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleOpen = () => setOpen(true)
   const handleClose = () => setOpen(false)
@@ -112,23 +182,6 @@ export default function Home() {
   const handleRecipeOpen = () => setOpenRecipe(true)
   const handleRecipeClose = () => setOpenRecipe(false)
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-  };
-
-  // Create a theme instance based on the darkMode state
-  const theme = createTheme({
-    palette: {
-      mode: darkMode ? 'dark' : 'light',
-      primary: {
-        main: '#1976d2', // Modern blue
-      },
-      secondary: {
-        main: '#ff9800', // Modern orange
-      },
-    },
-  });
-
   const handleDetection = async (detectedObject) => {
     handleCameraClose()
     if (detectedObject !== 'none') {
@@ -138,278 +191,296 @@ export default function Home() {
     }
   };
 
+  const formatName = (name) => name.charAt(0).toUpperCase() + name.slice(1);
+
+  const categoryKeywords = {
+    Fruits: ["apple", "banana", "orange", "grape", "fruit", "mango", "berry", "pear"],
+    Household: ["detergent", "soap", "cleaner", "doormat", "paper", "tissue", "house"],
+    Beverages: ["coffee", "tea", "juice", "drink", "milk", "water", "soda"],
+    Storage: ["box", "container", "jar", "bag", "storage"],
+    Equipment: ["forklift", "machine", "tool"],
+  };
+
+  const getCategory = (name) => {
+    const lower = name.toLowerCase();
+    const found = Object.entries(categoryKeywords).find(([, keywords]) =>
+      keywords.some((keyword) => lower.includes(keyword))
+    );
+    return found ? found[0] : "Other";
+  };
+
+  const getEmoji = (name) => {
+    const lower = name.toLowerCase();
+    if (lower.includes("apple")) return "🍏";
+    if (lower.includes("banana")) return "🍌";
+    if (lower.includes("box")) return "📦";
+    if (lower.includes("coffee")) return "☕";
+    if (lower.includes("forklift")) return "🏗️";
+    if (lower.includes("door") || lower.includes("mat")) return "🚪";
+    return "📦";
+  };
+
+  const totalItems = useMemo(
+    () => inventory.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+    [inventory]
+  );
+
+  const categorizedItems = useMemo(
+    () => inventory.map((item) => ({ ...item, category: getCategory(item.name) })),
+    [inventory]
+  );
+
+  const categories = useMemo(() => {
+    const set = new Set(categorizedItems.map((item) => item.category));
+    return ["All", ...Array.from(set)];
+  }, [categorizedItems]);
+
+  const filteredItems = useMemo(() => {
+    return categorizedItems.filter(({ name, category }) => {
+      const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = activeCategory === "All" || category === activeCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [categorizedItems, searchTerm, activeCategory]);
+
+  const overviewCounts = useMemo(() => {
+    return inventory
+      .map((item) => ({ name: item.name, value: Number(item.quantity || 0) }))
+      .filter((item) => item.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [inventory]);
+
+  const chartColors = ["#3ac98e", "#f06086", "#f5b942", "#e8633a", "#c15bf0", "#5b8ef0"];
+  const donutRadius = 46;
+  const donutCircumference = 2 * Math.PI * donutRadius;
+  let cumulativeOffset = 0;
+
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <div className="inventory-app">
+      <div className="app-shell">
+        {uiError ? (
+          <div className="ui-error" role="alert">
+            {uiError}
+          </div>
+        ) : null}
 
-      {/* Outer Div */}
-      <Box
-        width="100vw"
-        height="100vh"
-        display="flex"
-        flexDirection="column"
-        justifyContent="center"
-        alignItems="center"
-        bgcolor="background.paper"
-      >
+        <header className="app-header">
+          <div className="logo-block">
+            <div className="logo-icon">📦</div>
+            <div>
+              <div className="logo-text">Pantry.io</div>
+              <div className="logo-sub">Smart Inventory Manager</div>
+            </div>
+          </div>
 
-        {/* Navbar */}
-        <Box
-          width="100%"
-          display="flex"
-          justifyContent="space-between"
-          alignItems="center"
-          padding={2}
-          bgcolor="background.paper"
-          boxShadow={1}
-        >
-          <Typography variant="h2" color="text.primary"  fontWeight="bold"  pl={3}>Manage your Stuff!</Typography>
-          <IconButton onClick={toggleDarkMode}>
-            {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
-            <SpeedInsights />
-          </IconButton>
-        </Box>
+          <div className="header-actions">
+            <button className="btn btn-secondary" onClick={handleCameraOpen}>📷 Capture Item</button>
+            <button className="btn btn-secondary" onClick={handleRecipeOpen}>🍽️ Get Recipe</button>
+            <button className="btn btn-primary" onClick={handleOpen}>＋ Add New Item</button>
+          </div>
+        </header>
 
-        {/* Inner Div */}
-        <Box
-          display="flex"
-          flexDirection="row"
-          justifyContent="center"
-          alignItems="center"
-          flexGrow={1}
-          gap={10}
-        >
+        <section className="stats-row">
+          <div className="stat-card">
+            <div className="stat-label">Total Items</div>
+            <div className="stat-value">{totalItems}</div>
+            <div className="stat-change">Live inventory count</div>
+            <div className="stat-icon">📦</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Categories</div>
+            <div className="stat-value">{categories.length - 1}</div>
+            <div className="stat-change">Based on item names</div>
+            <div className="stat-icon">🗂️</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Low Stock</div>
+            <div className="stat-value">{inventory.filter((item) => item.quantity <= 2).length}</div>
+            <div className="stat-change">Items with quantity ≤ 2</div>
+            <div className="stat-icon">⚡</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Recipes Ready</div>
+            <div className="stat-value">{inventory.length}</div>
+            <div className="stat-change">Use available inventory</div>
+            <div className="stat-icon">🍳</div>
+          </div>
+        </section>
 
-          {/* Pie Chart */}
-          <Box
-            position="relative"
-            top="43%"
-            left="20%"
-            sx={{ transform: "translate(-60%,-80%)" }}
-            width={500}
-            height="450px"
-            border={`2px solid ${theme.palette.divider}`}
-            boxShadow={20}
-            paddingTop={4}
-            display="flex"
-            flexDirection="column"
-            justifyContent="center"
-            alignItems="center"
-            gap={3}
-          >
-            <Typography variant="h5" color="text.primary">Inventory Overview</Typography>
-            <PieChart
-            series={[
-              {
-                data: inventory.map(
-                  ({name, quantity}) => ({
-                    id: name,
-                    value: quantity,
-                    label: name,
-                  })
-                ),
-                innerRadius: 10,
-                outerRadius: 120,
-                paddingAngle: 5,
-                cornerRadius: 5,
-                startAngle: -180,
-                endAngle: 180,
-                cx: 150,
-                cy: 150,
-                highlightScope: { faded: 'global', highlighted: 'item' },
-                faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
-              },
-            ]}
-            width={450}
-            height={400}
-          />
-          </Box>
-          <Box
-            display="flex"
-            flexDirection="column"
-            justifyContent="center"
-            alignItems="center"
-            boxShadow={20}
-            flexGrow={1}
-            gap={2}
-          >
-            <Modal open={open} onClose={handleClose}>
-              <Box
-                position="relative"
-                top="50%"
-                left="50%"
-                sx={{ transform: "translate(-50%,-50%)" }}
-                width={400}
-                bgcolor="background.paper"
-                border={`2px solid ${theme.palette.divider}`}
-                p={4}
-                display="flex"
-                flexDirection="column"
-                gap={3}
-              >
-                <Typography variant="h6" color="text.primary">ADD NEW ITEM</Typography>
-                <Stack width="100%" direction="row" spacing={2}>
-                  <TextField
-                    variant="outlined"
-                    fullWidth
-                    value={itemName}
-                    onChange={(e) => { setItemName(e.target.value) }}
-                  />
-                  <Button variant="outlined" onClick={() => { addItem(itemName); setItemName(''); handleClose() }}>ADD</Button>
-                </Stack>
-              </Box>
-            </Modal>
+        <main className="main-grid">
+          <div className="glass-card chart-card">
+            <div className="card-title">Inventory Overview</div>
+            <div className="card-subtitle">Distribution by category</div>
 
-            {/* Inventory Items Div */}
-            <Box border={`1px solid ${theme.palette.divider}`}>
-              <Box
-                width="800px"
-                height="150px"
-                display="flex"
-                flexDirection="column"
-                justifyContent="center"
-                alignItems="center"
-                bgcolor="#ADD8E6"
-              >
-                <Box
-                  width="100%"
-                  display="flex"
-                  flexDirection="row"
-                  justifyContent="space-between"
-                  alignItems="center"
-                >
-                  <Typography variant="h5" color="text.primary" sx={{ marginLeft: 5 }}>Inventory Items</Typography>
-                  <Stack direction="row" spacing={2} pr={5}>
-                    <Button
-                      variant="contained"
-                      sx={{ marginRight: 5 }}
-                      startIcon={<AddShoppingCartIcon />}
-                      onClick={() => { handleOpen() }}
-                    >ADD NEW ITEM</Button>
-                    <Button
-                      variant="contained"
-                      sx={{ marginRight: 5 }}
-                      startIcon={<AssistantIcon />}
-                      onClick={() => { handleCameraOpen() }}
-                    >CAPTURE ITEM</Button>
-                    <Button
-                      variant="contained"
-                      sx={{ marginRight: 5 }}
-                      startIcon={<AssistantIcon />}
-                      onClick={() => { handleRecipeOpen() }}
-                    >GET RECIPE</Button>
-                  </Stack>
+            <div className="donut-wrapper">
+              <svg className="donut-svg" viewBox="0 0 120 120" aria-label="Inventory donut chart">
+                {overviewCounts.map((entry, index) => {
+                  const segment = totalItems > 0 ? (entry.value / totalItems) * donutCircumference : 0;
+                  const dashArray = `${segment} ${Math.max(donutCircumference - segment, 0)}`;
+                  const circle = (
+                    <circle
+                      key={entry.name}
+                      cx="60"
+                      cy="60"
+                      r={donutRadius}
+                      fill="none"
+                      stroke={chartColors[index % chartColors.length]}
+                      strokeWidth="18"
+                      strokeDasharray={dashArray}
+                      strokeDashoffset={-cumulativeOffset}
+                    />
+                  );
+                  cumulativeOffset += segment;
+                  return circle;
+                })}
+              </svg>
+              <div className="donut-center">
+                <div className="donut-center-num">{totalItems}</div>
+                <div className="donut-center-lbl">total items</div>
+              </div>
+            </div>
 
-                  {/* Camera Dialog */}
-                  <Dialog
-                    open={openCamera}
-                    onClose={() => handleCameraClose()}
-                    maxWidth="md"
-                    fullWidth
-                    border={`2px solid ${theme.palette.divider}`}
-                    p={4}
-                    gap={3}
-                  >
-                    <DialogTitle>
-                      <Stack
-                        display="flex"
-                        direction="row"
-                        spacing={2}
-                        justifyContent="space-between"
-                        alignItems="center"
-                        padding={2}
-                      >
-                        <Typography color="text.primary">IDENTIFY item USING IMAGE RECOGNITION</Typography>
-                        <IconButton onClick={() => handleCameraClose()}>
-                          <CloseIcon />
-                        </IconButton>
-                      </Stack>
-                    </DialogTitle>
-                    <DialogContent>
-                      <CameraComponent
-                        onDetection={handleDetection}
-                        onClose={() => handleCameraClose()}
-                        inventoryItems={inventory.map(item => item.name)}
-                      />
-                    </DialogContent>
-                  </Dialog>
+            <div className="legend">
+              {overviewCounts.map((entry, index) => (
+                <div className="legend-item" key={entry.name}>
+                  <span className="legend-dot" style={{ background: chartColors[index % chartColors.length] }}></span>
+                  <span className="legend-name">{formatName(entry.name)}</span>
+                  <span className="legend-val">{entry.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
 
-                  {/* Recipe Dialog */}
-                  <Dialog
-                    open={openRecipe}
-                    onClose={() => handleRecipeClose()}
-                    maxWidth="md"
-                    fullWidth
-                    border={`2px solid ${theme.palette.divider}`}
-                    p={4}
-                    gap={3}
-                  >
-                    <DialogTitle>
-                      <Stack
-                        display="flex"
-                        direction="row"
-                        spacing={2}
-                        justifyContent="space-between"
-                        alignItems="center"
-                        padding={2}
-                      >
-                        <Typography color="text.primary">GENERATE RECIPE FROM AVAILABLE INVENTORY USING AI</Typography>
-                        <IconButton onClick={() => handleRecipeClose()}>
-                          <CloseIcon />
-                        </IconButton>
-                      </Stack>
-                    </DialogTitle>
-                    <DialogContent>
-                      <RecipeSuggestion
-                        open={openRecipeSuggestion}
-                        onClose={() => handleRecipeClose()}
-                        inventoryItems={inventory.map(item => item.name)}
-                      />
-                    </DialogContent>
-                  </Dialog>
-
-                </Box>
-                <TextField
-                  variant="outlined"
+          <div className="glass-card items-card">
+            <div className="items-header">
+              <div className="items-title">Inventory Items <span className="badge">{totalItems} items</span></div>
+              <div className="search-wrap">
+                <span className="search-icon">🔍</span>
+                <input
+                  className="search-input"
+                  type="text"
                   placeholder="Search items..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  sx={{ mt: 2, width: '90%' }}
                 />
-              </Box>
-              <Stack width="800px" height="300px" direction="column" overflow="auto" spacing={-8}>
-                {
-                  inventory.filter(({ name }) => name.toLowerCase().includes(searchTerm.toLowerCase())).map(({ name, quantity }) => (
-                    <Box
-                      key={name}
-                      width="100%"
-                      minHeight="150px"
-                      display="flex"
-                      justifyContent="space-between"
-                      alignItems="center"
-                      bgcolor="background.paper"
-                      padding={10}
-                    >
-                      <Typography
-                        variant="subtitle1"
-                        fontSize="25px"
-                        color="text.primary"
-                        textAlign="center"
-                      >
-                        {name.charAt(0).toUpperCase() + name.slice(1)} : {quantity}</Typography>
-                      <Stack direction="row" spacing={2}>
-                        <Button variant="contained" onClick={() => { addItem(name) }}>ADD</Button>
-                        <Button variant="contained" onClick={() => { removeItem(name) }}>Remove</Button>
-                        <Button variant="outlined" startIcon={<DeleteIcon />} onClick={() => { deleteItem(name) }}>Delete</Button>
-                      </Stack>
-                    </Box>
-                  ))
-                }
-              </Stack>
-            </Box>
-          </Box>
-        </Box>
-      </Box>
-    </ThemeProvider>
-  )
+              </div>
+            </div>
+
+            <div className="cat-tabs">
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  className={`cat-tab ${activeCategory === category ? "active" : ""}`}
+                  onClick={() => setActiveCategory(category)}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+
+            <div className="items-list">
+              {filteredItems.length === 0 ? (
+                <div className="empty-items">No items match your filters.</div>
+              ) : (
+                filteredItems.map(({ name, quantity, category }) => (
+                  <div className="item-row" key={name}>
+                    <div className="item-color">{getEmoji(name)}</div>
+                    <div className="item-info">
+                      <div className="item-name">{formatName(name)}</div>
+                      <div className="item-category">{category}</div>
+                    </div>
+                    <div className="item-qty">
+                      <button className="qty-btn" onClick={() => removeItem(name)} aria-label={`Decrease ${name}`}>−</button>
+                      <span className="qty-num">{quantity}</span>
+                      <button className="qty-btn" onClick={() => addItem(name)} aria-label={`Increase ${name}`}>+</button>
+                    </div>
+                    <div className="item-actions">
+                      <button className="icon-btn del-btn" onClick={() => deleteItem(name)} aria-label={`Delete ${name}`}>🗑</button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {open && (
+        <div className="modal-overlay" onClick={handleClose}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Add New Item</h3>
+            <div className="modal-row">
+              <input
+                className="search-input"
+                type="text"
+                value={itemName}
+                placeholder="Item name"
+                onChange={(e) => setItemName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    (async () => {
+                      try {
+                        await addItem(itemName);
+                        setItemName('');
+                        handleClose();
+                      } catch {
+                        // error is shown in UI
+                      }
+                    })();
+                  }
+                }}
+              />
+              <button
+                className="btn btn-primary"
+                disabled={saving}
+                onClick={async () => {
+                  try {
+                    await addItem(itemName);
+                    setItemName('');
+                    handleClose();
+                  } catch {
+                    // error is shown in UI
+                  }
+                }}
+              >
+                {saving ? "Adding..." : "Add"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Dialog open={openCamera} onClose={handleCameraClose} maxWidth="md" fullWidth>
+        <DialogTitle className="dialog-title-wrap">
+          <span>Identify item using image recognition</span>
+          <IconButton onClick={handleCameraClose}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <CameraComponent
+            onDetection={handleDetection}
+            onClose={handleCameraClose}
+            inventoryItems={inventory.map((item) => item.name)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={openRecipe} onClose={handleRecipeClose} maxWidth="md" fullWidth>
+        <DialogTitle className="dialog-title-wrap">
+          <span>Generate recipe from available inventory</span>
+          <IconButton onClick={handleRecipeClose}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <RecipeSuggestion
+            onClose={handleRecipeClose}
+            inventoryItems={inventory.map((item) => item.name)}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }

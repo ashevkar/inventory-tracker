@@ -1,125 +1,151 @@
-# AI-Powered Food Inventory Management System
+# 🥦 AI-Powered Food Inventory Management System
 
-## Project Overview
+> An intelligent pantry tracker with real-time inventory management, AI image recognition, and smart recipe suggestions.
 
-This project is an AI-powered Inventory Management System works best with food items, developed as part of the Headstarter AI Fellowship. It features real-time inventory tracking, AI-powered image recognition for adding items, and smart recipe suggestions based on available ingredients.
+![Dashboard Screenshot](PantryTracker.jpg)
 
-![Dashboard Screenshot](pantry_tracker_homepage.png)
+---
 
 ## 🌟 Features
 
-- Real-time inventory tracking
-- AI-powered image recognition for adding items
-- Smart recipe suggestions based on available ingredients
-- Dark mode for comfortable viewing
-- Search functionality for quick item lookup
-- Responsive design for various screen sizes
+- **Real-time inventory tracking** — Keep your pantry up to date instantly
+- **AI-powered image recognition** — Add items just by taking a photo
+- **Smart recipe suggestions** — Get meal ideas based on what you have
+- **Dark mode** — Easy on the eyes, day or night
+- **Search functionality** — Quickly find any item in your inventory
+- **Responsive design** — Works seamlessly on desktop and mobile
 
-## 🛠️ Technologies Used
+---
+
+## 🛠️ Tech Stack
+
 <p align="center">
-    <img src="https://skillicons.dev/icons?i=git,ai,js,nextjs,react,html,tailwind,materialui,firebase" />
+  <img src="https://skillicons.dev/icons?i=git,js,nextjs,react,html,tailwind,materialui,firebase" />
 </p>
 
-- [Next.js](https://nextjs.org/)
-- [React](https://reactjs.org/)
-- [Firebase](https://firebase.google.com/)
-- [OpenAI API](https://openai.com/api/)
-- [OpenRouter API](https://openrouter.ai/docs/quick-start)
-- [Material-UI](https://material-ui.com/)
+| Category | Technology |
+|----------|------------|
+| Framework | [Next.js](https://nextjs.org/) |
+| UI Library | [React](https://reactjs.org/) + [Material-UI](https://material-ui.com/) |
+| Styling | [Tailwind CSS](https://tailwindcss.com/) |
+| Database | [Firebase](https://firebase.google.com/) |
+| AI / Vision | [OpenAI API](https://openai.com/api/) |
+| LLM Routing | [OpenRouter API](https://openrouter.ai/docs/quick-start) |
 
+---
 
 ## 🏁 Getting Started
 
-To get a local copy up and running, follow these steps:
+### Prerequisites
 
-1. Clone the repository:
+- Node.js (v18 or higher recommended)
+- A [Firebase](https://console.firebase.google.com/) project
+- An [OpenRouter](https://openrouter.ai/) API key
 
+### Installation
 
-```bash
-git clone https://github.com/ashevkar/inventory_tracker.git
-```
+1. **Clone the repository**
 
-2. Navigate to the project directory:
+   ```bash
+   git clone https://github.com/ashevkar/inventory_tracker.git
+   cd inventory_tracker
+   ```
 
-```bash
-cd inventory_tracker
-```
+2. **Install dependencies**
 
-3. Install dependencies:
-```bash
-npm install
-```
+   ```bash
+   npm install
+   ```
 
-4. Set up environment variables:
-Create a `.env.local` file in the root directory of your project & add the following environment variables:
+3. **Configure environment variables**
 
-```bash
-NEXT_PUBLIC_OPENROUTER_ENDPOINT=your_openrouter_endpoint
-OPENROUTER_API_KEY=your_openrouter_api_key
+   Create a `.env.local` file in the root directory and add the following:
 
-FIREBASE_API_KEY=your_firebase_api_key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET_NAME=your_firebase_storage_bucket
-FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
-FIREBASE_APP_ID=your_firebase_app_id
-FIREBASE_MEASUREMENT_ID=your_firebase_measurement_id
-```
+   ```env
+   # OpenRouter
+   NEXT_PUBLIC_OPENROUTER_ENDPOINT=your_openrouter_endpoint
+   OPENROUTER_API_KEY=your_openrouter_api_key
 
+   # Firebase
+   FIREBASE_API_KEY=your_firebase_api_key
+   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
+   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
+   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET_NAME=your_firebase_storage_bucket
+   FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
+   FIREBASE_APP_ID=your_firebase_app_id
+   FIREBASE_MEASUREMENT_ID=your_firebase_measurement_id
+   ```
 
-Replace the placeholder values (`your_firebase_api_key`, `your_firebase_auth_domain`, etc.) with your actual Firebase and OpenRouter credentials.
+   **Getting your Firebase credentials:**
+   1. Go to the [Firebase Console](https://console.firebase.google.com/)
+   2. Click **Add project** or select an existing one
+   3. Follow the setup wizard
+   4. Click the web icon (`</>`) to register a web app
+   5. Copy the provided configuration values into your `.env.local`
 
-To set up your Firebase project and obtain these credentials:
-i. Go to the [Firebase Console](https://console.firebase.google.com/)
-ii. Click on "Add project" or select an existing project
-iii. Follow the setup wizard to create your project
-iv. Once your project is ready, click on the web icon (`</>`) to add a web app to your project
-v. Register your app and Firebase will provide you with the configuration object containing these values
+   **Getting your OpenRouter API key:** Sign up at [OpenRouter](https://openrouter.ai/) and generate a key from your dashboard.
 
-For the OpenAI API key, sign up at the [OpenAI website](https://openai.com/api/) to get your API key.
+4. **Start the development server**
 
+   ```bash
+   npm run dev
+   ```
 
-5. Run the development server:
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-```bash
-npm run dev
-```
-
-6. Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
 ## 🐛 Troubleshooting
 
-If you encounter any issues while setting up or running the project, try the following:
-
-1. Ensure all dependencies are installed:
+**Dependencies not installing?**
 ```bash
 npm install
 ```
 
-2. Clear Next.js cache:
+**Stale build causing issues?**
 ```bash
 rm -rf .next
-```
-
-3. Rebuild the project:
-```bash
 npm run build
 ```
 
-4. For OpenAI API issues, verify that your API key is correctly set in the `.env.local` file and that you have sufficient credits in your OpenAI account.
+**OpenAI/OpenRouter not working?**
+- Verify your API key is correctly set in `.env.local`
+- Ensure your account has sufficient credits
+- Check that `pages/api/object-detection.js` is correctly configured to proxy API requests (avoids CORS issues)
 
-6. If you're encountering CORS issues with the OpenAI API, ensure that your serverless function (in `pages/api/object-detection.js`) is correctly configured to handle the API request.
+---
 
+## 📁 Project Structure
+
+```
+inventory_tracker/
+├── pages/
+│   ├── api/
+│   │   └── object-detection.js   # AI image recognition endpoint
+│   └── index.js                  # Main app entry
+├── components/                   # Reusable UI components
+├── firebase/                     # Firebase config and helpers
+├── public/                       # Static assets
+└── .env.local                    # Environment variables (not committed)
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! Feel free to open an [issue](https://github.com/ashevkar/inventory_tracker/issues) or submit a pull request.
+
+---
 
 ## 👤 Author
 
 **Aishwarya Shevkar**
 
-- LinkedIn: [Aishwarya Shevkar](https://www.linkedin.com/in/aish_06/)
-- GitHub: [@ashevkar](https://github.com/ashevkar)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Aishwarya_Shevkar-blue?logo=linkedin)](https://www.linkedin.com/in/aish06/)
+[![GitHub](https://img.shields.io/badge/GitHub-@ashevkar-black?logo=github)](https://github.com/ashevkar)
 
-## 🙏 Acknowledgments
+---
 
-- Headstarter AI Fellowship for the opportunity and support
-- OpenAI for providing the powerful API
-- All contributors and reviewers
+## 📄 License
+
+This project is open source. Feel free to use and adapt it for your own learning or projects.
